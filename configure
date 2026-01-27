@@ -478,6 +478,39 @@ if test -z "$build_cross"; then
           fi
         esac
       fi
+
+      # If building with a musl toolchain, default to musl configuration so
+      # produced binaries use the musl dynamic loader by default.
+      if ! confvars_has musl && ! confvars_has uClibc; then
+        want_musl=no
+        case "${cc##*/}" in
+          musl-gcc|*-musl-gcc) want_musl=yes ;;
+          *) case "${_triplet}" in *musl*) want_musl=yes ;; esac ;;
+        esac
+        if test "$want_musl" = "yes" && test -f "/lib/ld-musl-${cpu}.so.1"; then
+          confvars_set musl
+          suggest="no"
+
+          # Prefer triplet paths when present (common on distros providing musl
+          # alongside glibc), but do not override user-provided paths.
+          if test -z "$tcc_sysincludepaths" \
+              && test -d "/usr/${cpu}-linux-musl/include"; then
+            tcc_sysincludepaths="/usr/${cpu}-linux-musl/include:{B}/include"
+          fi
+          if test -z "$tcc_libpaths"; then
+            if test -d "/usr/${cpu}-linux-musl/lib64"; then
+              tcc_lddir="lib64"
+              tcc_libpaths="/usr/${cpu}-linux-musl/lib64:{B}"
+              test -n "$tcc_crtprefix" || tcc_crtprefix="/usr/${cpu}-linux-musl/lib64"
+            elif test -d "/usr/${cpu}-linux-musl/lib"; then
+              tcc_lddir="lib"
+              tcc_libpaths="/usr/${cpu}-linux-musl/lib:{B}"
+              test -n "$tcc_crtprefix" || tcc_crtprefix="/usr/${cpu}-linux-musl/lib"
+            fi
+          fi
+        fi
+      fi
+
       if test "$suggest" = "yes"; then
         if test -f "/lib/ld-uClibc.so.0" ; then
           echo "Perhaps you want ./configure --config-uClibc"
